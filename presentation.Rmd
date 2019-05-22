@@ -16,6 +16,10 @@ output:
  - founder of the Why R? Foundation and Wrocław R User Group,
  - facilitator of McKinsey Tech Meetup.
 
+## Advanced R
+
+Elective subject: "Programowanie w R dla zaawansowanych".
+
 # Full stack data science
 
 ## Full stack data science
@@ -318,7 +322,7 @@ future::plan(batchtools_torque,
 make(plan, parallelism = "future_lapply")
 ```
 
-## Why R? 2019}
+## Why R? 2019
 
 \begin{figure} 
 \includegraphics[width=0.75\textwidth]{static_figure/europa.jpg}
