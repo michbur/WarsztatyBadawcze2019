@@ -1,0 +1,1 @@
+Wykorzystaj zbiór danych *wine* z pakietu **FFTrees**, aby zbudować binary model jakości alkoholu (quality większy lub równy od 6). Wykorzystaj **mlrMBO**, aby zoptymalizować hiperparametry modelu. Budowę modelu, wraz z aplikacja **Shiny** umożliwiającą predykcję jakości alkoholu, przedstaw jako plan w pakiecie **drake**.

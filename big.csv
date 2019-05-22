@@ -1,0 +1,4 @@
+R (base::matrix) + lm; 7 GB; 1.4 GB;
+bigmemory + biglm; 4.4 GB; 3.9 GB;
+ff + biglm; 1.9 GB;1.6 GB;
+matter + biglm; 1 GB;660 MB;

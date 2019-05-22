@@ -1,0 +1,325 @@
+---
+title: "Full stack data science in R"
+author: "Michał Burdukiewicz"
+date: ""
+output: 
+  beamer_presentation:
+    slide_level: 2
+    toc: true
+    includes:
+      in_header: preamble.tex
+---
+
+## About me
+
+ - bioinformatician (Warsaw University of Technology, Brandenburg University of Technology Cottbus-Senftenberg, .prot),
+ - founder of the Why R? Foundation and Wrocław R User Group,
+ - facilitator of McKinsey Tech Meetup.
+
+# Full stack data science
+
+## Full stack data science
+
+\begin{figure} 
+\includegraphics[width=0.85\textwidth]{static_figure/overview.png}
+\end{figure}
+
+
+## Full stack data science in R
+
+\begin{figure} 
+\includegraphics[width=0.85\textwidth]{static_figure/overview-r.png}
+\end{figure}
+
+
+# Data acquisition and processing
+
+## Data acquisition
+
+Import data to **R** in a *data.frame* (or similar) format.
+
+```{r,echo=FALSE}
+knitr::kable(data.frame(Type = c("Tabular", "Relational databases", "Graph databases (e.g., neo4j)"),
+                        Package = c("**readr**, **xlsx**, **data.table**::*fread*", "**RPostgreSQL**, **mongolite**", "None")),
+             booktabs = TRUE)
+```
+
+## Big data processing
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.height=4.3}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+dat <- read.csv2("big.csv", header = FALSE)[,1:3]
+colnames(dat) <- c("Functions", "Memory", "Overhead")
+
+present_theme <- theme_bw(base_size = 16) +
+  theme(legend.position = "bottom", 
+        plot.background = element_rect(fill = NA, color = NA), 
+        legend.background= element_rect(fill = NA))
+
+p <- melt(dat, id.vars = "Functions") %>% 
+  mutate(value = gsub(pattern = "^ ", "", value),
+         value =  as.numeric(sapply(strsplit(as.character(value), " "), first)),
+         value = ifelse(value == 660, value/1000, value),
+         Functions = factor(Functions, levels = rev(unique(Functions))),
+         variable = factor(variable, levels = rev(levels(variable)))) %>%
+  arrange(desc(variable)) %>% 
+  ggplot(aes(x = Functions, y = value)) +
+  geom_col() +
+  scale_x_discrete("Functions/packages") +
+  scale_y_continuous("RAM used [GB]") +
+  #scale_fill_manual("", values = c("#998ec3", "#f1a340")) +
+  coord_flip() +
+  present_theme
+
+p
+```
+
+Comparative performance of matter for linear regression and calculation of the first two principal components on simulated datasets of 1.2 GB. 
+
+\tiny Source: Bemis KA (2019). matter: A framework for rapid prototyping with binary data on disk. R package version 1.10.0, https://github.com/kuwisdelu/matter.
+
+
+## Big data processing
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.height=4.3}
+p + geom_col(aes(fill = variable)) +
+  scale_fill_manual("", values = c("#998ec3", "#f1a340"))
+```
+
+Memory overhead is the maximum memory used during the execution minus the memory in use upon completion.
+
+\tiny Source: Bemis KA (2019). matter: A framework for rapid prototyping with binary data on disk. R package version 1.10.0, https://github.com/kuwisdelu/matter.
+
+# Model development
+
+## mlr
+
+**mlr**: a standardized interface to machine learning in **R** (by Bernd Bischl and Michael Lang).
+
+Alternatives: **caret**, **parsnip**.
+
+## Why mlr?
+
+ - amazing documentation,
+ - separation of learner and task,
+ - a wide array of tasks: *Classification*, *Regression*, *Cost-sensitive*, Survival, Clustering, Multilabel, Imbalanced data, Functional data, Spatial data.
+ - 71 performance measures.
+ - \huge{MBO}.
+ 
+## mlr tasks
+
+\tiny
+```{r,echo=FALSE,message=FALSE}
+library(mlr)
+```
+
+```{r}
+iris[1L:2, ]
+iris.task
+```
+
+## mlr learners
+
+\tiny
+```{r,warning=FALSE}
+listLearners()
+```
+
+## mlr learners
+
+\tiny
+```{r,warning=FALSE}
+listLearners(obj = iris.task)
+```
+
+## mlr learners
+
+\tiny
+```{r,}
+iris.task <- makeClassifTask(data = iris, target = "Species")
+
+lrn_rng <- makeLearner("classif.ranger")
+# ranger: the fastest random forest implementation in R
+# Marvin Wright, the author of ranger, is a keynote speaker of Why R? 2019
+
+cv <- makeResampleDesc("CV", iters = 3)
+
+resample(learner = lrn_rng, task = iris.task, resampling = cv)
+```
+
+
+## Bayesian optimization
+
+$$\max_{x \in \mathbb{R}}f(x)$$
+
+The *posterior* probability of a model (or theory, or hypothesis) $M$ given evidence (or data, or observations) $E$ is proportional to the likelihood of $E$ given $M$ multiplied by the *prior* probability of $M$:
+
+$$P(M|E) \propto P(E|M)|P(M) $$
+
+## Bayesian optimization
+
+Find local extrema of arbitrary functions.
+
+## Bayesian optimization
+
+$y = \sin(x) \times x^2$
+
+Local minimum: -3.9453.
+
+```{r,echo=FALSE,fig.height=4.6}
+data.frame(x = seq(-3.8, 2, 0.01)) %>% 
+  mutate(y = sin(x)*x^2) %>% 
+  ggplot(aes(x = x, y = y)) +
+  geom_line() +
+  present_theme
+```
+
+
+## Bayesian optimization
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,include=TRUE,results="hide" }
+library(mlrMBO)
+set.seed(1590)
+fn2 = makeSingleObjectiveFunction(
+  name = "Sample Function",
+  fn = function(x) sin(x)*x^2,
+  par.set = makeNumericParamSet("x", len = 1L, lower = -3.8L, upper = 2L),
+  global.opt.params = list(x = 0)
+)
+
+ctrl = makeMBOControl(propose.points = 1)
+ctrl = setMBOControlTermination(ctrl, iters = 6L)
+ctrl = setMBOControlInfill(ctrl, crit = makeMBOInfillCritEI(),
+                           opt = "focussearch", opt.focussearch.points = 500L)
+
+run <- exampleRun(fn2, control = ctrl)
+
+# przybli¿ana funkcja + wszystkie badane punkty
+df <- as.data.frame(run$mbo.res$opt.path) # wszystkie wytypowane punkty
+g1 <- ggplot(data=run$evals, aes(x=x,y=y)) + geom_line() + geom_point(data=data.frame(x=df$x,y=df$y)) + 
+  geom_point(data=data.frame(x=run$mbo.res$x,y=run$mbo.res$y), color="red") +
+  geom_text(data=data.frame(x=run$mbo.res$x,y=run$mbo.res$y), label = round(run$mbo.res$y, 2), color="red", vjust = -1) +
+  ggtitle("MBO") +
+  present_theme
+
+
+# Random Search
+
+library(randomsearch)
+runRandomSearch <- randomsearch(fn2, max.evals = 10L)
+df2 <- as.data.frame(runRandomSearch)
+opt2 <- getOptPathEl(runRandomSearch, index = getOptPathBestIndex(runRandomSearch))
+g2 <- ggplot(data=run$evals, aes(x=x,y=y)) + geom_line() + geom_point(data=data.frame(x=df2$x,y=df2$y)) + 
+  geom_point(data=data.frame(x=opt2$x,y=opt2$y), color="red") +
+  geom_text(data=data.frame(x=opt2$x,y=opt2$y), label = round(opt2$y, 2), color="red", vjust = -1) +
+  ggtitle("Random search") +
+  present_theme
+
+
+# Grid Search
+
+library(paramtest)
+fn2.b <- function(iter, x) return(sin(x)*x^2);
+runGridSearch <- grid_search(fn2.b, params = list(x=seq(-3.8,2)))
+df3 <- data.frame(x=runGridSearch$tests$x, y=unlist(runGridSearch$results))
+opt3 <- data.frame(x=runGridSearch$tests$x[which.min(unlist(runGridSearch$results))],y=min(unlist(runGridSearch$results)))
+g3 <- ggplot(data=run$evals, aes(x=x,y=y)) + geom_line() + geom_point(data=data.frame(x=df3$x,y=df3$y)) + 
+  geom_point(data=data.frame(x=opt3$x,y=opt3$y), color="red") +
+  geom_text(data=data.frame(x=opt3$x,y=opt3$y), label = round(opt3$y, 2), color="red", vjust = -1) +
+  ggtitle("Grid search") +
+  present_theme
+
+
+library(gridExtra)
+grid.arrange(g3, g2, g1, ncol = 1)
+
+```
+
+## Baysian optimization
+
+\begin{figure} 
+\includegraphics[width=0.85\textwidth]{static_figure/fig1.png}
+\end{figure}
+
+Source: Bernd Bischl
+
+# Model deployment
+
+## Shiny
+
+\begin{figure} 
+\includegraphics[width=0.95\textwidth]{static_figure/shiny.png}
+\end{figure}
+
+Limitations:
+
+\begin{enumerate}
+\item stability decreases with the number of concurrent users,
+\item speed.
+\end{enumerate}
+
+## ShinyProxy and Kubernetes
+
+**ShinyProxy**: docker-based containers for Shiny apps.
+
+ShinyProxy containers can be themselves run in a container and deployed clustered container managers (such as Kubernetes or Swarm).
+
+# Project management
+
+## drake
+
+\texttt{make} for \textbf{R} projects.
+
+*GNU Make is a tool which controls the generation of executables and other non-source files of a program from the program's source files.*
+
+Source: GNU Make web page.
+
+## drake
+
+\small
+```{r,eval=FALSE,echo=TRUE}
+plan <- drake_plan(
+  raw_data = read_excel(file_in("raw_data.xlsx")),
+  data = raw_data %>%
+    mutate(Species = fct_inorder(Species)),
+  hist = create_plot(data),
+  fit = lm(Sepal.Width ~ Petal.Width + Species, data),
+  report = rmarkdown::render(
+    knitr_in("report.Rmd"),
+    output_file = file_out("report.html"),
+    quiet = TRUE
+  )
+)
+```
+
+## drake
+
+\begin{figure} 
+\includegraphics[width=0.85\textwidth]{static_figure/drake1.png}
+\end{figure}
+
+## drake
+
+Parallelization:
+\small
+```{r,eval=FALSE,echo=TRUE}
+# multicore scaling
+make(plan, jobs = 12)
+
+# or enable supercomputing clusters with 
+# the future package 
+drake_hpc_template_file("torque_batchtools.tmpl") 
+library(future.batchtools)
+future::plan(batchtools_torque, 
+             template = "torque_batchtools.tmpl", 
+             workers = 8000)
+make(plan, parallelism = "future_lapply")
+```
+
+## Why R? 2019}
+
+\begin{figure} 
+\includegraphics[width=0.75\textwidth]{static_figure/europa.jpg}
+\end{figure}
